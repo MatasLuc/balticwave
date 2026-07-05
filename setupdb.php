@@ -533,21 +533,21 @@ if (PHP_SAPI === 'cli') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Baltic Wave CMS — duomenų bazės diegimas</title>
 <style>
-  body{margin:0;font-family:system-ui,sans-serif;background:#0b1020;color:#e8ecf6;display:grid;place-items:center;min-height:100vh}
-  .card{background:#141a2e;border:1px solid #263052;border-radius:16px;padding:36px 40px;max-width:640px;width:92%;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  body{margin:0;font-family:system-ui,sans-serif;background:#f2f5fa;color:#1a2440;display:grid;place-items:center;min-height:100vh}
+  .card{background:#fff;border:1px solid rgba(20,30,60,.1);border-radius:16px;padding:36px 40px;max-width:640px;width:92%;box-shadow:0 20px 60px rgba(23,32,58,.14)}
   h1{margin:0 0 6px;font-size:1.5rem}
-  h1 span{background:linear-gradient(90deg,#4ff0d2,#7c6bff);-webkit-background-clip:text;background-clip:text;color:transparent}
-  p.sub{margin:0 0 22px;color:#8b96b8}
+  h1 span{background:linear-gradient(90deg,#0aa38a,#6d5bde);-webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:0 0 22px;color:#61708f}
   ul{list-style:none;margin:0;padding:0}
-  li{padding:9px 12px;border-radius:8px;margin-bottom:6px;font-size:.92rem;background:#0f1526}
-  li.ok::before{content:"✓ ";color:#4ff0d2}
-  li.info::before{content:"ℹ ";color:#7ea2ff}
-  li.warn{background:#2a2210}li.warn::before{content:"⚠ ";color:#ffcf5c}
-  li.error{background:#2a1218}li.error::before{content:"✕ ";color:#ff6b81}
+  li{padding:9px 12px;border-radius:8px;margin-bottom:6px;font-size:.92rem;background:#f7f9fd;border:1px solid rgba(20,30,60,.07)}
+  li.ok::before{content:"✓ ";color:#0aa38a}
+  li.info::before{content:"ℹ ";color:#4f8dff}
+  li.warn{background:#fdf6e5}li.warn::before{content:"⚠ ";color:#b97f0f}
+  li.error{background:#fdeef1}li.error::before{content:"✕ ";color:#d6455d}
   .actions{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
   a.btn{display:inline-block;padding:11px 20px;border-radius:10px;text-decoration:none;font-weight:600;font-size:.92rem}
-  a.primary{background:linear-gradient(90deg,#31d2b4,#7c6bff);color:#081018}
-  a.ghost{border:1px solid #33406b;color:#e8ecf6}
+  a.primary{background:linear-gradient(90deg,#14c8ab,#7c5cff);color:#fff}
+  a.ghost{border:1px solid rgba(20,30,60,.2);color:#1a2440}
 </style>
 </head>
 <body>
