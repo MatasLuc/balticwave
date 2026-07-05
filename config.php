@@ -7,9 +7,9 @@
 
 // --- Database ---
 define('DB_HOST', getenv('BW_DB_HOST') ?: 'localhost');
-define('DB_NAME', getenv('BW_DB_NAME') ?: 'balticwave');
-define('DB_USER', getenv('BW_DB_USER') ?: 'root');
-define('DB_PASS', getenv('BW_DB_PASS') !== false ? getenv('BW_DB_PASS') : '');
+define('DB_NAME', getenv('BW_DB_NAME') ?: 'apda_bv');
+define('DB_USER', getenv('BW_DB_USER') ?: 'apda_bv');
+define('DB_PASS', getenv('BW_DB_PASS') !== false ? getenv('BW_DB_PASS') : 'Test123');
 
 // --- Paths / URLs ---
 // Leave BASE_URL empty ('') to auto-detect from the request.
