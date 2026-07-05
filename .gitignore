@@ -1,0 +1,8 @@
+# Uploaded media (keep the folder + protection files)
+uploads/*
+!uploads/.htaccess
+!uploads/index.html
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
