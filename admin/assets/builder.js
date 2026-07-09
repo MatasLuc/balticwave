@@ -210,6 +210,19 @@
     el.style.setProperty('--y', pos.y + 'px');
     el.style.setProperty('--w', pos.w + '%');
     el.style.setProperty('--z', pos.z || 1);
+    // The overflow clip belongs on the inner content wrapper, not on the
+    // block element itself — the resize handles are siblings of that
+    // wrapper (direct children of the block) positioned just outside its
+    // edges, and clipping the block itself would hide them the moment a
+    // manual height is set, making the block un-resizable afterwards.
+    var inner = el.querySelector('.bld-block-inner');
+    if (pos.h != null) {
+      el.style.height = pos.h + 'px';
+      if (inner) { inner.style.height = '100%'; inner.style.overflow = 'hidden'; }
+    } else {
+      el.style.height = '';
+      if (inner) { inner.style.height = ''; inner.style.overflow = ''; }
+    }
   }
 
   function blockClassName(b) {
@@ -217,13 +230,22 @@
     return 'bw-block bw-' + b.type + visCls + (b.id === selectedId ? ' selected' : '');
   }
 
+  // Right/bottom edges resize one axis; corners resize both at once,
+  // anchored at the opposite corner.
+  var RESIZE_HANDLES_HTML =
+      '<div class="bld-resize bld-resize-e" data-handle="right" title="Keisti plotį"></div>'
+    + '<div class="bld-resize bld-resize-s" data-handle="bottom" title="Keisti aukštį"></div>'
+    + '<div class="bld-resize bld-resize-corner bld-resize-se" data-handle="br" title="Keisti dydį"></div>'
+    + '<div class="bld-resize bld-resize-corner bld-resize-sw" data-handle="bl" title="Keisti dydį"></div>'
+    + '<div class="bld-resize bld-resize-corner bld-resize-ne" data-handle="tr" title="Keisti dydį"></div>'
+    + '<div class="bld-resize bld-resize-corner bld-resize-nw" data-handle="tl" title="Keisti dydį"></div>';
+
   function blockEl(b, deviceKey) {
     var el = document.createElement('div');
     el.className = blockClassName(b);
     el.dataset.id = b.id;
+    el.innerHTML = '<div class="bld-block-inner">' + (DEFS[b.type] ? DEFS[b.type].render(b.props || {}) : '') + '</div>' + RESIZE_HANDLES_HTML;
     applyGeometry(el, b[deviceKey]);
-    el.innerHTML = (DEFS[b.type] ? DEFS[b.type].render(b.props || {}) : '') +
-      '<div class="bld-resize" title="Keisti plotį"></div>';
     return el;
   }
 
@@ -246,8 +268,8 @@
       var el = pair[0].querySelector('[data-id="' + b.id + '"]');
       if (el) {
         el.className = blockClassName(b);
+        el.innerHTML = '<div class="bld-block-inner">' + DEFS[b.type].render(b.props || {}) + '</div>' + RESIZE_HANDLES_HTML;
         applyGeometry(el, b[pair[1]]);
-        el.innerHTML = DEFS[b.type].render(b.props || {}) + '<div class="bld-resize" title="Keisti plotį"></div>';
       }
     });
   }
@@ -468,6 +490,39 @@
     row2.appendChild(geoInput('Sluoksnis (z)', pos.z || 1, 0, 99, 1, function (v) { pos.z = v; refreshGeometryActive(b); markDirty(); }));
     propsBody.appendChild(row2);
 
+    var hWrap = document.createElement('div');
+    hWrap.className = 'bld-prop';
+    hWrap.innerHTML = '<label>Aukštis (px) — tempkite apatinį/kampo tašką, arba nustatykite čia</label>';
+    var hRow = document.createElement('div');
+    hRow.style.cssText = 'display:flex;gap:8px;align-items:center';
+    var hInput = document.createElement('input');
+    hInput.type = 'number';
+    hInput.min = 20; hInput.max = 20000; hInput.step = 5;
+    hInput.placeholder = 'auto';
+    hInput.style.flex = '1';
+    hInput.value = pos.h != null ? Math.round(pos.h) : '';
+    hInput.addEventListener('input', function () {
+      var v = hInput.value === '' ? null : Math.max(20, parseFloat(hInput.value));
+      pos.h = v == null || isNaN(v) ? null : v;
+      refreshGeometryActive(b);
+      markDirty();
+    });
+    var hReset = document.createElement('button');
+    hReset.type = 'button';
+    hReset.className = 'btn btn-ghost btn-sm';
+    hReset.style.flex = 'none';
+    hReset.textContent = pos.h != null ? '✕ Auto' : 'Auto aukštis';
+    hReset.addEventListener('click', function () {
+      pos.h = null;
+      refreshGeometryActive(b);
+      markDirty();
+      buildProps();
+    });
+    hRow.appendChild(hInput);
+    hRow.appendChild(hReset);
+    hWrap.appendChild(hRow);
+    propsBody.appendChild(hWrap);
+
     // Actions.
     var actions = document.createElement('div');
     actions.className = 'bld-prop-actions';
@@ -511,6 +566,7 @@
   var drag = null;
 
   function onCanvasPointerDown(e) {
+    var handleEl = e.target.closest('.bld-resize');
     var el = e.target.closest('.bw-block');
     if (!el) { select(null); return; }
     var b = findBlock(el.dataset.id);
@@ -522,9 +578,12 @@
     var rect = e.currentTarget.getBoundingClientRect();
     drag = {
       b: b, el: el, pos: pos,
-      mode: e.target.classList.contains('bld-resize') ? 'resize' : 'move',
+      handle: handleEl ? handleEl.dataset.handle : 'move',
       startX: e.clientX, startY: e.clientY,
       origX: pos.x, origY: pos.y, origW: pos.w,
+      // A block with no explicit height yet is sized by its content —
+      // use that rendered height as the starting point for the drag.
+      origH: pos.h != null ? pos.h : el.getBoundingClientRect().height,
       cw: rect.width
     };
   }
@@ -533,19 +592,54 @@
 
   document.addEventListener('pointermove', function (e) {
     if (!drag) return;
-    var dxPct = (e.clientX - drag.startX) / drag.cw * 100;
     var snap = snapInput.checked;
+    var dxPct = (e.clientX - drag.startX) / drag.cw * 100;
+    var dyPx = e.clientY - drag.startY;
 
-    if (drag.mode === 'move') {
+    if (drag.handle === 'move') {
       var nx = drag.origX + dxPct;
-      var ny = drag.origY + (e.clientY - drag.startY);
+      var ny = drag.origY + dyPx;
       if (snap) { nx = Math.round(nx); ny = Math.round(ny / 10) * 10; }
       drag.pos.x = Math.max(0, Math.min(100 - drag.pos.w, Math.round(nx * 10) / 10));
       drag.pos.y = Math.max(0, Math.round(ny));
     } else {
-      var nw = drag.origW + dxPct;
-      if (snap) nw = Math.round(nw);
-      drag.pos.w = Math.max(4, Math.min(100 - drag.pos.x, Math.round(nw * 10) / 10));
+      if (snap) { dxPct = Math.round(dxPct); dyPx = Math.round(dyPx / 10) * 10; }
+      var h = drag.handle;
+      var x = drag.origX, y = drag.origY, w = drag.origW, ht = drag.origH;
+      var rightEdge = drag.origX + drag.origW;
+      var bottomEdge = drag.origY + drag.origH;
+
+      // Right edge live: right/br/tr grow width, left edge stays put.
+      if (h === 'right' || h === 'br' || h === 'tr') {
+        w = Math.max(4, Math.min(100 - x, drag.origW + dxPct));
+      }
+      // Left edge live: bl/tl grow width leftward, right edge stays put.
+      if (h === 'bl' || h === 'tl') {
+        x = Math.max(0, Math.min(rightEdge - 4, drag.origX + dxPct));
+        w = rightEdge - x;
+      }
+      // Bottom edge live: bottom/br/bl grow height, top edge stays put.
+      if (h === 'bottom' || h === 'br' || h === 'bl') {
+        ht = Math.max(20, drag.origH + dyPx);
+      }
+      // Top edge live: tr/tl grow height upward, bottom edge stays put.
+      if (h === 'tr' || h === 'tl') {
+        y = Math.max(0, Math.min(bottomEdge - 20, drag.origY + dyPx));
+        ht = bottomEdge - y;
+      }
+
+      // Only write back the axes this handle actually touched — the
+      // single-edge handles must stay single-axis, otherwise grabbing just
+      // the width (right) handle would also silently pin the block's
+      // previously-auto height to whatever it happened to render at.
+      if (h !== 'bottom') {
+        drag.pos.x = Math.round(x * 10) / 10;
+        drag.pos.w = Math.round(w * 10) / 10;
+      }
+      if (h !== 'right') {
+        drag.pos.y = Math.round(y);
+        drag.pos.h = Math.round(ht);
+      }
     }
     applyGeometry(drag.el, drag.pos);
     markDirty();

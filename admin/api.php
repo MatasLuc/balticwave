@@ -50,11 +50,14 @@ switch ($action) {
         ];
         $cleanPos = function ($pos): array {
             $pos = is_array($pos) ? $pos : [];
+            $h   = $pos['h'] ?? null;
             return [
                 'x' => max(0, min(100, (float)($pos['x'] ?? 0))),
                 'y' => max(0, min(30000, (float)($pos['y'] ?? 0))),
                 'w' => max(2, min(100, (float)($pos['w'] ?? 100))),
                 'z' => max(0, min(99, (int)($pos['z'] ?? 1))),
+                // null = auto (content-driven height); a number = manually pinned via a resize handle.
+                'h' => ($h === null || $h === '') ? null : max(20, min(30000, (float)$h)),
             ];
         };
         foreach ($layout['blocks'] as $b) {

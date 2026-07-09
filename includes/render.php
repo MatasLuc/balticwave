@@ -61,6 +61,13 @@ function render_block(array $b, string $device = 'desktop'): string
     $z = (int)($pos['z'] ?? 1);
 
     $style = sprintf('--x:%s%%;--y:%spx;--w:%s%%;--z:%d', $x, $y, $w, $z);
+    // A manually set height (via the builder's corner/edge resize handles)
+    // overrides the block's natural content-driven height; anything that
+    // no longer fits is clipped rather than pushing the layout around.
+    if (isset($pos['h']) && $pos['h'] !== null && $pos['h'] !== '') {
+        $h = max(20, (float)$pos['h']);
+        $style .= sprintf(';height:%spx;overflow:hidden', $h);
+    }
     $inner = render_block_inner($type, $props);
     return '<div class="bw-block bw-' . e($type) . '" style="' . $style . '">' . $inner . '</div>';
 }
