@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === null) {
 </head>
 <body class="bw-admin adm-auth">
 <div class="auth-card">
+  <div class="auth-logo"><?= bw_logo_svg('auth-logo-mark') ?></div>
   <h1><span>Baltic Wave</span> CMS</h1>
   <p class="sub">Prisijunkite prie administravimo pulto</p>
   <?php if ($error): ?><div class="flash flash-error"><?= e($error) ?></div><?php endif; ?>
