@@ -26,7 +26,7 @@ $section = $adminSection ?? '';
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/admin.css?v=<?= e(BW_VERSION) ?>">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+<link rel="icon" href="<?= bw_favicon_href() ?>">
 <script>window.BW_CSRF = <?= json_encode(csrf_token()) ?>;</script>
 <script src="assets/admin.js?v=<?= e(BW_VERSION) ?>"></script>
 </head>
@@ -34,7 +34,8 @@ $section = $adminSection ?? '';
 <div class="adm-shell">
   <aside class="adm-sidebar">
     <a class="adm-logo" href="index.php">
-      <span class="adm-logo-wave">〜</span> Baltic Wave <small>CMS</small>
+      <?= bw_logo_svg('adm-logo-mark') ?>
+      <span class="adm-logo-name">Baltic Wave</span> <small>CMS</small>
     </a>
     <nav class="adm-nav">
       <?php foreach ($nav as $key => [$href, $icon, $label]): ?>

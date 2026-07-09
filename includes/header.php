@@ -25,7 +25,7 @@ $active    = $activeSlug ?? '';
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(base_url()) ?>/assets/css/style.css?v=<?= e(BW_VERSION) ?>">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+<link rel="icon" href="<?= bw_favicon_href() ?>">
 </head>
 <body class="bw-site">
 <div class="bw-aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -33,11 +33,7 @@ $active    = $activeSlug ?? '';
 <header class="bw-header">
   <div class="bw-header-inner">
     <a class="bw-logo" href="<?= e(page_url('home')) ?>">
-      <svg class="bw-logo-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <path d="M4 26c5-8 9-8 13 0s9 8 13 0 7-6 6-12" stroke="url(#lg)" stroke-width="3.4" stroke-linecap="round"/>
-        <path d="M4 33c5-6 9-6 13 0s9 6 13 0" stroke="url(#lg)" stroke-width="2.2" stroke-linecap="round" opacity=".55"/>
-        <defs><linearGradient id="lg" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#4ff0d2"/><stop offset="1" stop-color="#7c6bff"/></linearGradient></defs>
-      </svg>
+      <?= bw_logo_svg('bw-logo-mark') ?>
       <span class="bw-logo-text"><?= e($siteName) ?></span>
     </a>
 

@@ -11,7 +11,10 @@ $bwHasSocial  = setting('youtube_url') !== '' || setting('facebook_url') !== '' 
 <footer class="bw-footer">
   <div class="bw-footer-inner">
     <div class="bw-footer-brand">
-      <span class="bw-logo-text"><?= e(setting('site_name', 'Baltic Wave')) ?></span>
+      <div class="bw-logo bw-footer-logo">
+        <?= bw_logo_svg('bw-logo-mark') ?>
+        <span class="bw-logo-text"><?= e(setting('site_name', 'Baltic Wave')) ?></span>
+      </div>
       <p><?= e(setting('footer_text', 'A real-time global music event.')) ?></p>
     </div>
 

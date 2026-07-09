@@ -56,6 +56,35 @@ function slugify(string $text): string
     return trim($text, '-');
 }
 
+/**
+ * The Baltic Wave logo mark — three overlapping eighth notes, dark-to-light.
+ * Reused by the public header, the admin sidebar, and the favicon.
+ */
+function bw_logo_svg(string $class = 'bw-logo-mark'): string
+{
+    $note = '<ellipse cx="8" cy="33" rx="7.2" ry="5.4" transform="rotate(-18 8 33)" fill="%s"/>'
+          . '<rect x="13.6" y="3" width="2.6" height="31" rx="1.3" fill="%s"/>'
+          . '<path d="M16.2,3 C20.5,3.4 23.5,6.8 22.6,10.8 C22,13.4 19,14.2 16.7,12.2 Z" fill="%s"/>';
+    $colors = ['#8ab6d6', '#4a6fa5', '#1c2541'];
+    $dx     = [24, 12, 0];
+    $dy     = [-3, 2, 7];
+    $groups = '';
+    foreach ($colors as $i => $c) {
+        $groups .= '<g transform="translate(' . $dx[$i] . ',' . $dy[$i] . ')">'
+                 . sprintf($note, $c, $c, $c) . '</g>';
+    }
+    return '<svg class="' . e($class) . '" viewBox="0 0 48 46" fill="none" aria-hidden="true">' . $groups . '</svg>';
+}
+
+/** Data-URI favicon built from the same logo mark (percent-encoded so it is
+ *  safe to place inside an href="..." attribute — the SVG itself is full of
+ *  double quotes that would otherwise break out of the attribute). */
+function bw_favicon_href(): string
+{
+    $svg = str_replace('<svg class="" ', '<svg ', bw_logo_svg(''));
+    return 'data:image/svg+xml,' . rawurlencode($svg);
+}
+
 /** Read a site setting (cached per request). */
 function setting(string $key, string $default = ''): string
 {
