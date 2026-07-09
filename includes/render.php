@@ -33,9 +33,14 @@ function render_block(array $b): string
     $y = max(0, (float)($b['y'] ?? 0));
     $z = (int)($b['z'] ?? 1);
 
+    $visibility = in_array($b['visibility'] ?? 'all', ['all', 'desktop', 'mobile'], true)
+                ? $b['visibility'] : 'all';
+    $visClass = $visibility === 'desktop' ? ' bw-vis-desktop'
+              : ($visibility === 'mobile' ? ' bw-vis-mobile' : '');
+
     $style = sprintf('--x:%s%%;--y:%spx;--w:%s%%;--z:%d', $x, $y, $w, $z);
     $inner = render_block_inner($type, $props);
-    return '<div class="bw-block bw-' . e($type) . '" style="' . $style . '">' . $inner . '</div>';
+    return '<div class="bw-block bw-' . e($type) . $visClass . '" style="' . $style . '">' . $inner . '</div>';
 }
 
 function render_block_inner(string $type, array $p): string
@@ -66,10 +71,12 @@ function render_block_inner(string $type, array $p): string
                 : $img;
         }
         case 'button': {
-            $url   = e($p['url'] ?? '#');
-            $cls   = ($p['variant'] ?? 'solid') === 'outline' ? 'bw-btn bw-btn-outline' : 'bw-btn';
-            $align = e($p['align'] ?? 'left');
-            return '<div style="text-align:' . $align . '"><a class="' . $cls . '" href="' . $url . '">'
+            $url    = e($p['url'] ?? '#');
+            $cls    = ($p['variant'] ?? 'solid') === 'outline' ? 'bw-btn bw-btn-outline' : 'bw-btn';
+            $align  = e($p['align'] ?? 'left');
+            $colorA = (!empty($p['color']) && preg_match('/^#[0-9a-fA-F]{6}$/', $p['color']))
+                    ? ' style="color:' . e($p['color']) . '"' : '';
+            return '<div style="text-align:' . $align . '"><a class="' . $cls . '" href="' . $url . '"' . $colorA . '>'
                  . e($p['label'] ?? 'Button') . '<span class="bw-btn-arrow">&rarr;</span></a></div>';
         }
         case 'youtube': {

@@ -52,14 +52,17 @@ switch ($action) {
             array_walk_recursive($props, function (&$v) {
                 if (is_string($v)) { $v = mb_substr($v, 0, 20000); }
             });
+            $visibility = in_array($b['visibility'] ?? 'all', ['all', 'desktop', 'mobile'], true)
+                        ? $b['visibility'] : 'all';
             $clean['blocks'][] = [
-                'id'    => preg_replace('/[^A-Za-z0-9_-]/', '', (string)($b['id'] ?? uniqid('b'))),
-                'type'  => $b['type'],
-                'x'     => max(0, min(100, (float)($b['x'] ?? 0))),
-                'y'     => max(0, min(30000, (float)($b['y'] ?? 0))),
-                'w'     => max(2, min(100, (float)($b['w'] ?? 100))),
-                'z'     => max(0, min(99, (int)($b['z'] ?? 1))),
-                'props' => $props,
+                'id'         => preg_replace('/[^A-Za-z0-9_-]/', '', (string)($b['id'] ?? uniqid('b'))),
+                'type'       => $b['type'],
+                'x'          => max(0, min(100, (float)($b['x'] ?? 0))),
+                'y'          => max(0, min(30000, (float)($b['y'] ?? 0))),
+                'w'          => max(2, min(100, (float)($b['w'] ?? 100))),
+                'z'          => max(0, min(99, (int)($b['z'] ?? 1))),
+                'visibility' => $visibility,
+                'props'      => $props,
             ];
         }
         if (count($clean['blocks']) > 200) {

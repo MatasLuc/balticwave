@@ -43,12 +43,21 @@ window.BW_UPLOADS_URL = <?= json_encode('../' . UPLOADS_URL) ?>;
     <a class="btn btn-ghost btn-sm" href="pages.php">← Puslapiai</a>
     <h1><?= e($page['title']) ?> <small>· vizualus redaktorius</small></h1>
     <span class="bld-status" id="bld-status">Išsaugota</span>
-    <label class="adm-check" style="margin:0;font-size:.82rem" title="Pritraukti prie tinklelio">
-      <input type="checkbox" id="bld-snap" checked> tinklelis
-    </label>
-    <label style="font-size:.8rem;color:var(--muted)">Aukštis
-      <input type="number" id="bld-height" class="adm-input" style="width:90px;display:inline-block;margin:0 0 0 6px;padding:6px 8px" min="200" max="30000" step="10" value="<?= (int)$layout['height'] ?>">
-    </label>
+
+    <div class="bld-device-switch" role="group" aria-label="Peržiūros įrenginys">
+      <button type="button" class="bld-device-btn active" data-device="desktop">🖥 Desktop</button>
+      <button type="button" class="bld-device-btn" data-device="mobile">📱 Mobile</button>
+    </div>
+
+    <div class="bld-desktop-controls" id="bld-desktop-controls">
+      <label class="adm-check" style="margin:0;font-size:.82rem" title="Pritraukti prie tinklelio">
+        <input type="checkbox" id="bld-snap" checked> tinklelis
+      </label>
+      <label style="font-size:.8rem;color:var(--muted)">Aukštis
+        <input type="number" id="bld-height" class="adm-input" style="width:80px;display:inline-block;margin:0 0 0 6px;padding:6px 8px" min="200" max="30000" step="10" value="<?= (int)$layout['height'] ?>">
+      </label>
+    </div>
+
     <a class="btn btn-ghost btn-sm" href="<?= e(page_url($page['slug'])) ?>" target="_blank">Peržiūrėti ↗</a>
     <button class="btn btn-primary btn-sm" id="bld-save">💾 Išsaugoti</button>
   </div>
@@ -63,18 +72,30 @@ window.BW_UPLOADS_URL = <?= json_encode('../' . UPLOADS_URL) ?>;
         · Rodyklės — pastumti (Shift = 10×)<br>
         · Teal rankenėlė — plotis<br>
         · Delete — pašalinti bloką<br>
-        · Mobiliuose blokai išsirikiuoja pagal Y
+        · Mobiliuose blokai išsirikiuoja pagal Y<br>
+        · „Matomumas“ — rodyti tik Desktop/Mobile<br>
+        · 📱 Mobile mygtukas viršuje — tiksli peržiūra
       </p>
     </aside>
 
     <div class="bld-canvas-outer" id="bld-canvas-outer">
       <div class="bw-canvas bld-canvas grid-on" id="bld-canvas"></div>
+      <div class="bld-phone-frame" id="bld-phone-frame" hidden>
+        <div class="bld-phone-notch"></div>
+        <iframe class="bld-preview-frame" id="bld-preview-frame" title="Mobili peržiūra"></iframe>
+      </div>
     </div>
 
     <aside class="bld-props" id="bld-props">
-      <h3>Savybės</h3>
-      <div class="empty">Pasirinkite bloką drobėje arba pridėkite naują iš kairės.</div>
+      <div class="bld-props-head">
+        <h3>Savybės</h3>
+        <button type="button" class="bld-props-toggle" id="bld-props-toggle" title="Suskleisti skydelį">✕</button>
+      </div>
+      <div id="bld-props-body">
+        <div class="empty">Pasirinkite bloką drobėje arba pridėkite naują iš kairės.</div>
+      </div>
     </aside>
+    <button type="button" class="bld-props-tab" id="bld-props-tab" title="Rodyti savybes" hidden>⚙</button>
   </div>
 </div>
 
