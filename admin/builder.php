@@ -15,7 +15,7 @@ if (!$page) {
 }
 
 $layout = json_decode($page['content'] ?: '{}', true) ?: [];
-$layout += ['height' => 600, 'blocks' => []];
+$layout += ['height' => 600, 'mobileHeight' => 600, 'blocks' => []];
 
 $albums = q_all('SELECT id, title FROM gallery_albums ORDER BY sort_order, id');
 ?>
@@ -49,7 +49,7 @@ window.BW_UPLOADS_URL = <?= json_encode('../' . UPLOADS_URL) ?>;
       <button type="button" class="bld-device-btn" data-device="mobile">📱 Mobile</button>
     </div>
 
-    <div class="bld-desktop-controls" id="bld-desktop-controls">
+    <div class="bld-canvas-controls">
       <label class="adm-check" style="margin:0;font-size:.82rem" title="Pritraukti prie tinklelio">
         <input type="checkbox" id="bld-snap" checked> tinklelis
       </label>
@@ -72,9 +72,8 @@ window.BW_UPLOADS_URL = <?= json_encode('../' . UPLOADS_URL) ?>;
         · Rodyklės — pastumti (Shift = 10×)<br>
         · Teal rankenėlė — plotis<br>
         · Delete — pašalinti bloką<br>
-        · Mobiliuose blokai išsirikiuoja pagal Y<br>
-        · „Matomumas“ — rodyti tik Desktop/Mobile<br>
-        · 📱 Mobile mygtukas viršuje — tiksli peržiūra
+        · Desktop ir Mobile — visiškai atskiri išdėstymai, dėliojami atskirai<br>
+        · „Matomumas“ — rodyti tik Desktop/Mobile
       </p>
     </aside>
 
@@ -82,7 +81,7 @@ window.BW_UPLOADS_URL = <?= json_encode('../' . UPLOADS_URL) ?>;
       <div class="bw-canvas bld-canvas grid-on" id="bld-canvas"></div>
       <div class="bld-phone-frame" id="bld-phone-frame" hidden>
         <div class="bld-phone-notch"></div>
-        <iframe class="bld-preview-frame" id="bld-preview-frame" title="Mobili peržiūra"></iframe>
+        <div class="bw-canvas bld-canvas bld-canvas-mobile-edit grid-on" id="bld-canvas-mobile"></div>
       </div>
     </div>
 

@@ -1,15 +1,20 @@
 /* ============================================================
    Baltic Wave CMS — visual drag & drop page builder
-   Blocks live on a free canvas: x/w in % of canvas width,
-   y in px from the top. Saved as JSON via admin/api.php.
+   Every block carries TWO independent positions — b.desktop and
+   b.mobile (each {x,y,w,z}, x/w in % of canvas width, y in px) —
+   edited on two separate canvases via the Desktop/Mobile toolbar
+   tabs. Content/props are shared between both. Saved as JSON via
+   admin/api.php.
    ============================================================ */
 (function () {
   'use strict';
 
-  var layout = window.BW_LAYOUT || { height: 600, blocks: [] };
+  var layout = window.BW_LAYOUT || { height: 600, mobileHeight: 600, blocks: [] };
   layout.blocks = layout.blocks || [];
+  if (layout.mobileHeight == null) layout.mobileHeight = layout.height || 600;
 
   var canvas = document.getElementById('bld-canvas');
+  var canvasMobile = document.getElementById('bld-canvas-mobile');
   var outer = document.getElementById('bld-canvas-outer');
   var propsBody = document.getElementById('bld-props-body');
   var statusEl = document.getElementById('bld-status');
@@ -44,11 +49,12 @@
     dirty = true;
     statusEl.textContent = 'Neišsaugoti pakeitimai';
     statusEl.className = 'bld-status dirty';
-    if (device === 'mobile') refreshMobilePreview();
   }
   function placeholder(title, note) {
     return '<div class="bld-placeholder"><b>' + esc(title) + '</b>' + esc(note || '') + '</div>';
   }
+  function activeCanvas() { return device === 'mobile' ? canvasMobile : canvas; }
+  function heightKey() { return device === 'mobile' ? 'mobileHeight' : 'height'; }
 
   // ---------------------------------------------------------------
   // Block definitions: label, icon, defaults, editable fields, preview
@@ -196,13 +202,14 @@
   };
 
   // ---------------------------------------------------------------
-  // Canvas rendering
+  // Canvas rendering — each canvas (desktop/mobile) is a fully
+  // independent set of DOM nodes bound to b.desktop / b.mobile.
   // ---------------------------------------------------------------
-  function applyGeometry(el, b) {
-    el.style.setProperty('--x', b.x + '%');
-    el.style.setProperty('--y', b.y + 'px');
-    el.style.setProperty('--w', b.w + '%');
-    el.style.setProperty('--z', b.z || 1);
+  function applyGeometry(el, pos) {
+    el.style.setProperty('--x', pos.x + '%');
+    el.style.setProperty('--y', pos.y + 'px');
+    el.style.setProperty('--w', pos.w + '%');
+    el.style.setProperty('--z', pos.z || 1);
   }
 
   function blockClassName(b) {
@@ -210,42 +217,59 @@
     return 'bw-block bw-' + b.type + visCls + (b.id === selectedId ? ' selected' : '');
   }
 
-  function blockEl(b) {
+  function blockEl(b, deviceKey) {
     var el = document.createElement('div');
     el.className = blockClassName(b);
     el.dataset.id = b.id;
-    applyGeometry(el, b);
+    applyGeometry(el, b[deviceKey]);
     el.innerHTML = (DEFS[b.type] ? DEFS[b.type].render(b.props || {}) : '') +
       '<div class="bld-resize" title="Keisti plotį"></div>';
     return el;
   }
 
-  function renderCanvas() {
-    canvas.style.setProperty('--h', layout.height + 'px');
-    canvas.style.minHeight = layout.height + 'px';
-    canvas.innerHTML = '';
-    layout.blocks.forEach(function (b) { canvas.appendChild(blockEl(b)); });
+  function renderCanvasFor(cv, deviceKey) {
+    var h = layout[deviceKey === 'mobile' ? 'mobileHeight' : 'height'];
+    cv.style.setProperty('--h', h + 'px');
+    cv.style.minHeight = h + 'px';
+    cv.innerHTML = '';
+    layout.blocks.forEach(function (b) { cv.appendChild(blockEl(b, deviceKey)); });
   }
 
-  function refreshBlock(b) {
-    var el = canvas.querySelector('[data-id="' + b.id + '"]');
-    if (el) {
-      el.className = blockClassName(b);
-      applyGeometry(el, b);
-      el.innerHTML = DEFS[b.type].render(b.props || {}) + '<div class="bld-resize" title="Keisti plotį"></div>';
-    }
+  function renderCanvas() {
+    renderCanvasFor(canvas, 'desktop');
+    renderCanvasFor(canvasMobile, 'mobile');
+  }
+
+  /** Content/visibility changed (shared) — refresh this block in BOTH canvases, keeping each one's own geometry. */
+  function refreshBlockContent(b) {
+    [[canvas, 'desktop'], [canvasMobile, 'mobile']].forEach(function (pair) {
+      var el = pair[0].querySelector('[data-id="' + b.id + '"]');
+      if (el) {
+        el.className = blockClassName(b);
+        applyGeometry(el, b[pair[1]]);
+        el.innerHTML = DEFS[b.type].render(b.props || {}) + '<div class="bld-resize" title="Keisti plotį"></div>';
+      }
+    });
+  }
+
+  /** Geometry changed for the currently active device only — reposition without a full re-render. */
+  function refreshGeometryActive(b) {
+    var el = activeCanvas().querySelector('[data-id="' + b.id + '"]');
+    if (el) applyGeometry(el, b[device]);
   }
 
   function growCanvasIfNeeded() {
+    var cv = activeCanvas();
+    var key = heightKey();
     var bottom = 0;
-    canvas.querySelectorAll('.bw-block').forEach(function (el) {
+    cv.querySelectorAll('.bw-block').forEach(function (el) {
       bottom = Math.max(bottom, el.offsetTop + el.offsetHeight);
     });
-    if (bottom + 40 > layout.height) {
-      layout.height = Math.ceil((bottom + 80) / 10) * 10;
-      heightInput.value = layout.height;
-      canvas.style.minHeight = layout.height + 'px';
-      canvas.style.setProperty('--h', layout.height + 'px');
+    if (bottom + 40 > layout[key]) {
+      layout[key] = Math.ceil((bottom + 80) / 10) * 10;
+      heightInput.value = layout[key];
+      cv.style.minHeight = layout[key] + 'px';
+      cv.style.setProperty('--h', layout[key] + 'px');
     }
   }
 
@@ -265,14 +289,16 @@
 
   function addBlock(type) {
     var d = DEFS[type];
+    var pos = { x: Math.round((100 - d.w) / 2), y: Math.max(20, Math.round(outer.scrollTop + 60)), w: d.w, z: 1 };
     var b = {
-      id: uid(), type: type,
-      x: Math.round((100 - d.w) / 2), y: Math.max(20, Math.round(outer.scrollTop + 60)),
-      w: d.w, z: 1,
-      props: JSON.parse(JSON.stringify(d.props))
+      id: uid(), type: type, visibility: 'all',
+      props: JSON.parse(JSON.stringify(d.props)),
+      desktop: { x: pos.x, y: pos.y, w: pos.w, z: pos.z },
+      mobile: { x: pos.x, y: pos.y, w: pos.w, z: pos.z }
     };
     layout.blocks.push(b);
-    canvas.appendChild(blockEl(b));
+    canvas.appendChild(blockEl(b, 'desktop'));
+    canvasMobile.appendChild(blockEl(b, 'mobile'));
     select(b.id);
     markDirty();
     growCanvasIfNeeded();
@@ -283,8 +309,10 @@
   // ---------------------------------------------------------------
   function select(id) {
     selectedId = id;
-    canvas.querySelectorAll('.bw-block').forEach(function (el) {
-      el.classList.toggle('selected', el.dataset.id === id);
+    [canvas, canvasMobile].forEach(function (cv) {
+      cv.querySelectorAll('.bw-block').forEach(function (el) {
+        el.classList.toggle('selected', el.dataset.id === id);
+      });
     });
     if (id != null) setPropsCollapsed(false);
     buildProps();
@@ -410,34 +438,34 @@
     propsBody.appendChild(propInput({ k: 'visibility', t: 'select', label: 'Matomumas', opts: VISIBILITY_OPTS },
       b.visibility || 'all', function (v) {
         b.visibility = v;
-        renderCanvas();
-        select(b.id);
+        refreshBlockContent(b);
         markDirty();
       }));
 
-    // Type-specific fields.
+    // Type-specific fields (shared between devices).
     d.fields.forEach(function (f) {
       propsBody.appendChild(propInput(f, b.props[f.k], function (v) {
         b.props[f.k] = v;
-        refreshBlock(b);
+        refreshBlockContent(b);
         markDirty();
       }, b.props));
     });
 
-    // Geometry.
+    // Geometry — independent per device; edits only the active canvas.
     var geoTitle = document.createElement('h3');
-    geoTitle.textContent = 'Padėtis ir dydis';
+    geoTitle.textContent = 'Padėtis ir dydis (' + (device === 'mobile' ? 'Mobile' : 'Desktop') + ')';
     geoTitle.style.marginTop = '18px';
     propsBody.appendChild(geoTitle);
+    var pos = b[device];
     var row1 = document.createElement('div');
     row1.className = 'bld-prop-row';
-    row1.appendChild(geoInput('X (%)', b.x, 0, 100, 0.5, function (v) { b.x = v; refreshBlock(b); markDirty(); }));
-    row1.appendChild(geoInput('Y (px)', b.y, 0, 30000, 5, function (v) { b.y = v; refreshBlock(b); markDirty(); growCanvasIfNeeded(); }));
+    row1.appendChild(geoInput('X (%)', pos.x, 0, 100, 0.5, function (v) { pos.x = v; refreshGeometryActive(b); markDirty(); }));
+    row1.appendChild(geoInput('Y (px)', pos.y, 0, 30000, 5, function (v) { pos.y = v; refreshGeometryActive(b); markDirty(); growCanvasIfNeeded(); }));
     propsBody.appendChild(row1);
     var row2 = document.createElement('div');
     row2.className = 'bld-prop-row';
-    row2.appendChild(geoInput('Plotis (%)', b.w, 2, 100, 0.5, function (v) { b.w = v; refreshBlock(b); markDirty(); }));
-    row2.appendChild(geoInput('Sluoksnis (z)', b.z || 1, 0, 99, 1, function (v) { b.z = v; refreshBlock(b); markDirty(); }));
+    row2.appendChild(geoInput('Plotis (%)', pos.w, 2, 100, 0.5, function (v) { pos.w = v; refreshGeometryActive(b); markDirty(); }));
+    row2.appendChild(geoInput('Sluoksnis (z)', pos.z || 1, 0, 99, 1, function (v) { pos.z = v; refreshGeometryActive(b); markDirty(); }));
     propsBody.appendChild(row2);
 
     // Actions.
@@ -449,9 +477,11 @@
     dup.addEventListener('click', function () {
       var copy = JSON.parse(JSON.stringify(b));
       copy.id = uid();
-      copy.y += 40;
+      copy.desktop.y += 40;
+      copy.mobile.y += 40;
       layout.blocks.push(copy);
-      canvas.appendChild(blockEl(copy));
+      canvas.appendChild(blockEl(copy, 'desktop'));
+      canvasMobile.appendChild(blockEl(copy, 'mobile'));
       select(copy.id);
       markDirty();
     });
@@ -466,18 +496,21 @@
 
   function removeBlock(id) {
     layout.blocks = layout.blocks.filter(function (b) { return b.id !== id; });
-    var el = canvas.querySelector('[data-id="' + id + '"]');
-    if (el) el.remove();
+    [canvas, canvasMobile].forEach(function (cv) {
+      var el = cv.querySelector('[data-id="' + id + '"]');
+      if (el) el.remove();
+    });
     if (selectedId === id) select(null);
     markDirty();
   }
 
   // ---------------------------------------------------------------
-  // Dragging & resizing (pointer events)
+  // Dragging & resizing (pointer events) — bound to whichever canvas
+  // is currently active; operates on b[device] only.
   // ---------------------------------------------------------------
   var drag = null;
 
-  canvas.addEventListener('pointerdown', function (e) {
+  function onCanvasPointerDown(e) {
     var el = e.target.closest('.bw-block');
     if (!el) { select(null); return; }
     var b = findBlock(el.dataset.id);
@@ -485,15 +518,18 @@
     select(b.id);
     e.preventDefault();
 
-    var rect = canvas.getBoundingClientRect();
+    var pos = b[device];
+    var rect = e.currentTarget.getBoundingClientRect();
     drag = {
-      b: b, el: el,
+      b: b, el: el, pos: pos,
       mode: e.target.classList.contains('bld-resize') ? 'resize' : 'move',
       startX: e.clientX, startY: e.clientY,
-      origX: b.x, origY: b.y, origW: b.w,
+      origX: pos.x, origY: pos.y, origW: pos.w,
       cw: rect.width
     };
-  });
+  }
+  canvas.addEventListener('pointerdown', onCanvasPointerDown);
+  canvasMobile.addEventListener('pointerdown', onCanvasPointerDown);
 
   document.addEventListener('pointermove', function (e) {
     if (!drag) return;
@@ -504,14 +540,14 @@
       var nx = drag.origX + dxPct;
       var ny = drag.origY + (e.clientY - drag.startY);
       if (snap) { nx = Math.round(nx); ny = Math.round(ny / 10) * 10; }
-      drag.b.x = Math.max(0, Math.min(100 - drag.b.w, Math.round(nx * 10) / 10));
-      drag.b.y = Math.max(0, Math.round(ny));
+      drag.pos.x = Math.max(0, Math.min(100 - drag.pos.w, Math.round(nx * 10) / 10));
+      drag.pos.y = Math.max(0, Math.round(ny));
     } else {
       var nw = drag.origW + dxPct;
       if (snap) nw = Math.round(nw);
-      drag.b.w = Math.max(4, Math.min(100 - drag.b.x, Math.round(nw * 10) / 10));
+      drag.pos.w = Math.max(4, Math.min(100 - drag.pos.x, Math.round(nw * 10) / 10));
     }
-    applyGeometry(drag.el, drag.b);
+    applyGeometry(drag.el, drag.pos);
     markDirty();
   });
 
@@ -528,35 +564,39 @@
     if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
     var b = findBlock(selectedId);
     if (!b) return;
+    var pos = b[device];
     var step = e.shiftKey ? 10 : 1;
     var handled = true;
-    if (e.key === 'ArrowLeft') b.x = Math.max(0, b.x - step * 0.5);
-    else if (e.key === 'ArrowRight') b.x = Math.min(100 - b.w, b.x + step * 0.5);
-    else if (e.key === 'ArrowUp') b.y = Math.max(0, b.y - step);
-    else if (e.key === 'ArrowDown') b.y = b.y + step;
+    if (e.key === 'ArrowLeft') pos.x = Math.max(0, pos.x - step * 0.5);
+    else if (e.key === 'ArrowRight') pos.x = Math.min(100 - pos.w, pos.x + step * 0.5);
+    else if (e.key === 'ArrowUp') pos.y = Math.max(0, pos.y - step);
+    else if (e.key === 'ArrowDown') pos.y = pos.y + step;
     else if (e.key === 'Delete' || e.key === 'Backspace') { removeBlock(b.id); return; }
     else handled = false;
     if (handled) {
       e.preventDefault();
-      refreshBlock(b);
+      refreshGeometryActive(b);
       markDirty();
     }
   });
 
   // ---------------------------------------------------------------
-  // Height & snap controls
+  // Height & snap controls — apply to whichever device is active.
   // ---------------------------------------------------------------
   heightInput.addEventListener('input', function () {
     var v = parseInt(heightInput.value, 10);
     if (!isNaN(v) && v >= 200) {
-      layout.height = v;
-      canvas.style.minHeight = v + 'px';
-      canvas.style.setProperty('--h', v + 'px');
+      var key = heightKey();
+      var cv = activeCanvas();
+      layout[key] = v;
+      cv.style.minHeight = v + 'px';
+      cv.style.setProperty('--h', v + 'px');
       markDirty();
     }
   });
   snapInput.addEventListener('change', function () {
     canvas.classList.toggle('grid-on', snapInput.checked);
+    canvasMobile.classList.toggle('grid-on', snapInput.checked);
   });
 
   // ---------------------------------------------------------------
@@ -574,40 +614,20 @@
   propsTab.addEventListener('click', function () { setPropsCollapsed(false); });
 
   // ---------------------------------------------------------------
-  // Desktop / Mobile device preview
+  // Desktop / Mobile — each is a real, independently editable canvas;
+  // switching just shows/hides one and retargets height/grid/geometry
+  // controls at it. Nothing is regenerated or lost either way.
   // ---------------------------------------------------------------
   var deviceButtons = document.querySelectorAll('.bld-device-btn');
-  var desktopControls = document.getElementById('bld-desktop-controls');
   var phoneFrame = document.getElementById('bld-phone-frame');
-  var previewFrame = document.getElementById('bld-preview-frame');
-  var previewTimer = null;
-
-  function refreshMobilePreview() {
-    clearTimeout(previewTimer);
-    previewTimer = setTimeout(function () {
-      var body = new FormData();
-      body.append('csrf', window.BW_CSRF);
-      body.append('layout', JSON.stringify(layout));
-      fetch('preview.php', { method: 'POST', headers: { 'X-CSRF': window.BW_CSRF }, body: body })
-        .then(function (r) { return r.text(); })
-        .then(function (html) { previewFrame.srcdoc = html; })
-        .catch(function () {});
-    }, 300);
-  }
 
   function setDevice(next) {
     device = next;
     deviceButtons.forEach(function (btn) { btn.classList.toggle('active', btn.dataset.device === device); });
-    if (device === 'mobile') {
-      canvas.hidden = true;
-      phoneFrame.hidden = false;
-      desktopControls.style.visibility = 'hidden';
-      refreshMobilePreview();
-    } else {
-      canvas.hidden = false;
-      phoneFrame.hidden = true;
-      desktopControls.style.visibility = '';
-    }
+    canvas.hidden = device !== 'desktop';
+    phoneFrame.hidden = device !== 'mobile';
+    heightInput.value = layout[heightKey()];
+    buildProps(); // geometry fields must reflect the newly active device
   }
   deviceButtons.forEach(function (btn) {
     btn.addEventListener('click', function () { setDevice(btn.dataset.device); });

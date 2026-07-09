@@ -2,45 +2,67 @@
 /**
  * Block renderer — turns a page's JSON layout into HTML.
  *
- * A layout is: { "height": 900, "blocks": [ {id, type, x, y, w, z, props}, … ] }
+ * A layout is:
+ *   { "height": 900, "mobileHeight": 1200, "blocks": [
+ *       { id, type, visibility, props, desktop: {x,y,w,z}, mobile: {x,y,w,z} }, …
+ *   ] }
  *   x, w — percent of the canvas width;  y — pixels from the top;  z — stacking.
- * On desktop blocks are absolutely positioned (free placement); on mobile the
- * stylesheet stacks them in DOM order, which is why we sort by y before output.
+ *
+ * Desktop and mobile each have their own fully independent free-form layout
+ * (own positions, own canvas height) — not a responsive reflow of the same
+ * one. We render TWO complete canvases and let CSS show only the one that
+ * matches the viewport; this is exactly what the builder's Desktop/Mobile
+ * tabs edit.
  */
 require_once __DIR__ . '/functions.php';
 
 function render_page_canvas(?string $layoutJson): string
 {
-    $layout = json_decode($layoutJson ?: '{}', true) ?: [];
-    $blocks = $layout['blocks'] ?? [];
-    $height = max(200, (int)($layout['height'] ?? 600));
+    $layout       = json_decode($layoutJson ?: '{}', true) ?: [];
+    $blocks       = $layout['blocks'] ?? [];
+    $height       = max(200, (int)($layout['height'] ?? 600));
+    $mobileHeight = max(200, (int)($layout['mobileHeight'] ?? $height));
 
-    usort($blocks, fn($a, $b) => [$a['y'] ?? 0, $a['x'] ?? 0] <=> [$b['y'] ?? 0, $b['x'] ?? 0]);
+    $sortBy = function (array $blocks, string $device): array {
+        usort($blocks, fn($a, $b) =>
+            [$a[$device]['y'] ?? 0, $a[$device]['x'] ?? 0] <=> [$b[$device]['y'] ?? 0, $b[$device]['x'] ?? 0]);
+        return $blocks;
+    };
 
-    $html = '<div class="bw-canvas" style="--h:' . $height . 'px">';
-    foreach ($blocks as $b) {
-        $html .= render_block($b);
+    $desktopBlocks = $sortBy(array_filter($blocks, fn($b) => ($b['visibility'] ?? 'all') !== 'mobile'), 'desktop');
+    $mobileBlocks  = $sortBy(array_filter($blocks, fn($b) => ($b['visibility'] ?? 'all') !== 'desktop'), 'mobile');
+
+    $html = '<div class="bw-canvas bw-canvas-desktop" style="--h:' . $height . 'px">';
+    foreach ($desktopBlocks as $b) {
+        $html .= render_block($b, 'desktop');
     }
-    return $html . '</div>';
+    $html .= '</div>';
+
+    $html .= '<div class="bw-canvas bw-canvas-mobile" style="--h:' . $mobileHeight . 'px">';
+    foreach ($mobileBlocks as $b) {
+        $html .= render_block($b, 'mobile');
+    }
+    $html .= '</div>';
+
+    return $html;
 }
 
-function render_block(array $b): string
+function render_block(array $b, string $device = 'desktop'): string
 {
     $type  = $b['type'] ?? 'text';
     $props = $b['props'] ?? [];
-    $x = max(0, min(100, (float)($b['x'] ?? 0)));
-    $w = max(2, min(100, (float)($b['w'] ?? 100)));
-    $y = max(0, (float)($b['y'] ?? 0));
-    $z = (int)($b['z'] ?? 1);
-
-    $visibility = in_array($b['visibility'] ?? 'all', ['all', 'desktop', 'mobile'], true)
-                ? $b['visibility'] : 'all';
-    $visClass = $visibility === 'desktop' ? ' bw-vis-desktop'
-              : ($visibility === 'mobile' ? ' bw-vis-mobile' : '');
+    // Falls back to the pre-migration flat x/y/w/z if a block somehow
+    // never went through the setupdb.php migration.
+    $pos   = $b[$device] ?? $b['desktop']
+           ?? ['x' => $b['x'] ?? 10, 'y' => $b['y'] ?? 0, 'w' => $b['w'] ?? 80, 'z' => $b['z'] ?? 1];
+    $x = max(0, min(100, (float)($pos['x'] ?? 0)));
+    $w = max(2, min(100, (float)($pos['w'] ?? 100)));
+    $y = max(0, (float)($pos['y'] ?? 0));
+    $z = (int)($pos['z'] ?? 1);
 
     $style = sprintf('--x:%s%%;--y:%spx;--w:%s%%;--z:%d', $x, $y, $w, $z);
     $inner = render_block_inner($type, $props);
-    return '<div class="bw-block bw-' . e($type) . $visClass . '" style="' . $style . '">' . $inner . '</div>';
+    return '<div class="bw-block bw-' . e($type) . '" style="' . $style . '">' . $inner . '</div>';
 }
 
 function render_block_inner(string $type, array $p): string
