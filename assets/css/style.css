@@ -164,9 +164,22 @@ body.bw-site {
 .bw-nav li.has-sub.open .bw-caret,
 .bw-nav li.has-sub:focus-within .bw-caret { transform: rotate(225deg) translateY(1px); }
 
+.bw-nav li.has-sub::after {
+  /* Invisible bridge over the gap between the trigger and the dropdown —
+     without it, moving the mouse down breaks :hover before it reaches the
+     submenu and the dropdown snaps shut. */
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 260px;
+  height: 14px;
+  transform: translateX(-50%);
+}
+
 .bw-sub {
   position: absolute;
-  top: calc(100% + 16px);
+  top: calc(100% + 10px);
   left: 50%;
   min-width: 260px;
   background: #ffffff;
@@ -713,6 +726,7 @@ body.bw-site {
     padding: 0 0 6px 18px !important;
   }
   .bw-sub::before { content: none; }
+  .bw-nav li.has-sub::after { content: none; }
   .bw-sub a { font-size: 0.98rem; color: var(--muted); }
   .bw-burger { display: flex; }
 }
