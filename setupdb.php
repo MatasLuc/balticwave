@@ -102,7 +102,46 @@ $BW_MIGRATIONS = [
         return 'Sukurtos pagrindinės lentelės (users, settings, pages, menu_items, gallery, videos, messages).';
     },
 
-    // 2 => function (PDO $db): string { … next schema change goes here … },
+    2 => function (PDO $db): string {
+        // Desktop and mobile used to share one x/y/w/z per block (mobile was
+        // just forced to stack via CSS). They're now independently editable
+        // layouts, so every block needs its own "desktop" and "mobile"
+        // position — split the old flat fields into both, cloning the old
+        // position as the mobile starting point.
+        $rows = $db->query('SELECT id, content FROM pages')->fetchAll(PDO::FETCH_ASSOC);
+        $upd  = $db->prepare('UPDATE pages SET content = ? WHERE id = ?');
+        $migrated = 0;
+        foreach ($rows as $row) {
+            $layout = json_decode($row['content'] ?: '{}', true);
+            if (!is_array($layout) || empty($layout['blocks']) || !is_array($layout['blocks'])) {
+                continue;
+            }
+            $changed = false;
+            foreach ($layout['blocks'] as &$b) {
+                if (!is_array($b) || isset($b['desktop'])) {
+                    continue;
+                }
+                $b['desktop'] = [
+                    'x' => $b['x'] ?? 10, 'y' => $b['y'] ?? 0, 'w' => $b['w'] ?? 80, 'z' => $b['z'] ?? 1,
+                ];
+                $b['mobile'] = $b['desktop'];
+                unset($b['x'], $b['y'], $b['w'], $b['z']);
+                $changed = true;
+            }
+            unset($b);
+            if (!isset($layout['mobileHeight'])) {
+                $layout['mobileHeight'] = $layout['height'] ?? 600;
+                $changed = true;
+            }
+            if ($changed) {
+                $upd->execute([json_encode($layout, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $row['id']]);
+                $migrated++;
+            }
+        }
+        return "Migruota $migrated puslapio maketų į atskirus Desktop/Mobile išdėstymus (pradinis Mobile — Desktop kopija, koreguokite redaktoriuje).";
+    },
+
+    // 3 => function (PDO $db): string { … next schema change goes here … },
 ];
 
 // ---------------------------------------------------------------------------
@@ -110,12 +149,15 @@ $BW_MIGRATIONS = [
 // ---------------------------------------------------------------------------
 
 /** Rough rendered height of a block — used only to auto-stack seeded layouts. */
-function bw_estimate_height(string $type, array $p, float $w): float
+function bw_estimate_height(string $type, array $p, float $w, float $canvasWidth = 1160): float
 {
-    $px = 1160 * $w / 100; // approximate rendered width in px
+    $px = $canvasWidth * $w / 100; // approximate rendered width in px
+    $mobile = $canvasWidth < 800;
     switch ($type) {
         case 'heading':
-            return [1 => 140, 2 => 96, 3 => 64][(int)($p['level'] ?? 2)] ?? 90;
+            return $mobile
+                ? ([1 => 110, 2 => 80, 3 => 56][(int)($p['level'] ?? 2)] ?? 70)
+                : ([1 => 140, 2 => 96, 3 => 64][(int)($p['level'] ?? 2)] ?? 90);
         case 'text': {
             $html  = $p['html'] ?? '';
             $chars = mb_strlen(strip_tags($html));
@@ -142,40 +184,63 @@ function bw_estimate_height(string $type, array $p, float $w): float
 }
 
 /**
- * Build a layout JSON by stacking block definitions top-to-bottom.
+ * Stack block definitions top-to-bottom for one device's canvas.
  * Each def: [type, props, opts] where opts = x, w, gap, h, samerow.
+ * Mobile ignores "samerow"/x (side-by-side pairs don't fit a narrow phone)
+ * and always stacks full-width, single column.
  */
-function bw_layout(array $defs): string
+function bw_layout_stack(array $defs, bool $mobile): array
 {
+    $canvasWidth = $mobile ? 390 : 1160;
     $y = 70;
-    $blocks = [];
-    $n = 0;
+    $positions = [];
     $prevY = 70;
-    $prevH = 0;
     foreach ($defs as $d) {
         [$type, $props] = $d;
         $o   = $d[2] ?? [];
-        $x   = $o['x'] ?? 10;
-        $w   = $o['w'] ?? 80;
+        $x   = $mobile ? 5 : ($o['x'] ?? 10);
+        $w   = $mobile ? 90 : ($o['w'] ?? 80);
         $gap = $o['gap'] ?? 30;
-        $h   = $o['h'] ?? bw_estimate_height($type, $props, (float)$w);
-        $yy  = !empty($o['samerow']) ? $prevY : $y;
+        $h   = $mobile
+             ? bw_estimate_height($type, $props, $w, $canvasWidth)
+             : ($o['h'] ?? bw_estimate_height($type, $props, (float)$w, $canvasWidth));
+        $sameRow = !$mobile && !empty($o['samerow']);
+        $yy = $sameRow ? $prevY : $y;
 
-        $blocks[] = [
-            'id' => 'b' . (++$n), 'type' => $type,
-            'x' => $x, 'y' => $yy, 'w' => $w, 'z' => 1, 'props' => $props,
-        ];
-        if (!empty($o['samerow'])) {
+        $positions[] = ['x' => $x, 'y' => $yy, 'w' => $w, 'z' => 1];
+        if ($sameRow) {
             $y = max($y, $yy + $h + $gap);
-            $prevH = max($prevH, $h);
         } else {
             $prevY = $yy;
-            $prevH = $h;
             $y = $yy + $h + $gap;
         }
     }
-    return json_encode(['height' => (int)($y + 50), 'blocks' => $blocks],
-                       JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return ['height' => (int)($y + 50), 'positions' => $positions];
+}
+
+/** Build a layout JSON with independent desktop and mobile stacks. */
+function bw_layout(array $defs): string
+{
+    $desktop = bw_layout_stack($defs, false);
+    $mobile  = bw_layout_stack($defs, true);
+
+    $blocks = [];
+    $n = 0;
+    foreach ($defs as $i => $d) {
+        [$type, $props] = $d;
+        $blocks[] = [
+            'id' => 'b' . (++$n), 'type' => $type,
+            'visibility' => 'all',
+            'desktop' => $desktop['positions'][$i],
+            'mobile'  => $mobile['positions'][$i],
+            'props' => $props,
+        ];
+    }
+    return json_encode([
+        'height' => $desktop['height'],
+        'mobileHeight' => $mobile['height'],
+        'blocks' => $blocks,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
 function bw_seed_content(PDO $db, array &$log): void

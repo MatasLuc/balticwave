@@ -20,7 +20,7 @@ define('UPLOADS_DIR', __DIR__ . '/uploads');
 define('UPLOADS_URL', 'uploads');
 
 // --- Misc ---
-define('BW_VERSION', '1.3.0');
+define('BW_VERSION', '1.4.0');
 define('BW_DEBUG', (bool)(getenv('BW_DEBUG') ?: false));
 
 if (BW_DEBUG) {

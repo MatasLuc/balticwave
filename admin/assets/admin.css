@@ -396,7 +396,7 @@ body.bld-body { overflow: hidden; }
 }
 .bld-device-btn:hover { color: var(--text); }
 .bld-device-btn.active { background: #ffffff; color: var(--text); box-shadow: 0 2px 8px rgba(23, 32, 58, 0.12); }
-.bld-desktop-controls { display: flex; align-items: center; gap: 12px; flex: none; }
+.bld-canvas-controls { display: flex; align-items: center; gap: 12px; flex: none; }
 
 .bld-wrap { display: flex; flex: 1; min-height: 0; }
 
@@ -508,13 +508,13 @@ body.bld-body { overflow: hidden; }
 .bld-canvas .bw-block.bld-only-desktop::before { content: "🖥 tik Desktop"; }
 .bld-canvas .bw-block.bld-only-mobile::before { content: "📱 tik Mobile"; }
 
-/* Phone-frame mobile preview (real render, via admin/preview.php iframe) */
+/* Phone-frame mockup wrapping the real, independently-editable mobile canvas. */
 .bld-phone-frame {
-  width: 390px;
-  margin: 10px auto 30px;
+  width: 422px;
+  margin: 10px auto 40px;
   background: var(--navy, #1c2541);
   border-radius: 40px;
-  padding: 14px 8px;
+  padding: 30px 16px 16px;
   box-shadow: 0 20px 60px rgba(23, 32, 58, 0.25);
   position: relative;
 }
@@ -528,16 +528,18 @@ body.bld-body { overflow: hidden; }
   height: 22px;
   background: var(--navy, #1c2541);
   border-radius: 0 0 16px 16px;
-  z-index: 2;
+  z-index: 6;
 }
-.bld-preview-frame {
-  display: block;
-  width: 100%;
-  height: 720px;
-  border: 0;
-  border-radius: 28px;
-  background: #ffffff;
+.bld-canvas.bld-canvas-mobile-edit {
+  width: 390px;
+  margin: 0;
+  border-radius: 26px;
 }
+/* font-size: clamp(…vw…) resolves against the *admin* browser's full-width
+   viewport, not this 390px mock canvas, so it would render oversized here.
+   Pin headings to the value they actually clamp to on a real phone. */
+.bld-canvas-mobile-edit .bw-h1 { font-size: 2.6rem; }
+.bld-canvas-mobile-edit .bw-h2 { font-size: 1.7rem; }
 
 .bld-resize {
   position: absolute;

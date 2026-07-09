@@ -43,7 +43,20 @@ switch ($action) {
         if (!is_array($layout) || !isset($layout['blocks']) || !is_array($layout['blocks'])) {
             api_out(['ok' => false, 'error' => 'Blogas maketo formatas.'], 400);
         }
-        $clean = ['height' => max(200, min(30000, (int)($layout['height'] ?? 600))), 'blocks' => []];
+        $clean = [
+            'height'       => max(200, min(30000, (int)($layout['height'] ?? 600))),
+            'mobileHeight' => max(200, min(30000, (int)($layout['mobileHeight'] ?? 600))),
+            'blocks'       => [],
+        ];
+        $cleanPos = function ($pos): array {
+            $pos = is_array($pos) ? $pos : [];
+            return [
+                'x' => max(0, min(100, (float)($pos['x'] ?? 0))),
+                'y' => max(0, min(30000, (float)($pos['y'] ?? 0))),
+                'w' => max(2, min(100, (float)($pos['w'] ?? 100))),
+                'z' => max(0, min(99, (int)($pos['z'] ?? 1))),
+            ];
+        };
         foreach ($layout['blocks'] as $b) {
             if (!is_array($b) || !in_array($b['type'] ?? '', BW_BLOCK_TYPES, true)) {
                 continue;
@@ -57,11 +70,9 @@ switch ($action) {
             $clean['blocks'][] = [
                 'id'         => preg_replace('/[^A-Za-z0-9_-]/', '', (string)($b['id'] ?? uniqid('b'))),
                 'type'       => $b['type'],
-                'x'          => max(0, min(100, (float)($b['x'] ?? 0))),
-                'y'          => max(0, min(30000, (float)($b['y'] ?? 0))),
-                'w'          => max(2, min(100, (float)($b['w'] ?? 100))),
-                'z'          => max(0, min(99, (int)($b['z'] ?? 1))),
                 'visibility' => $visibility,
+                'desktop'    => $cleanPos($b['desktop'] ?? null),
+                'mobile'     => $cleanPos($b['mobile'] ?? null),
                 'props'      => $props,
             ];
         }
