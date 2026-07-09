@@ -11,13 +11,14 @@
 
   var canvas = document.getElementById('bld-canvas');
   var outer = document.getElementById('bld-canvas-outer');
-  var propsPanel = document.getElementById('bld-props');
+  var propsBody = document.getElementById('bld-props-body');
   var statusEl = document.getElementById('bld-status');
   var heightInput = document.getElementById('bld-height');
   var snapInput = document.getElementById('bld-snap');
 
   var selectedId = null;
   var dirty = false;
+  var device = 'desktop';
 
   // ---------------------------------------------------------------
   // Helpers
@@ -43,6 +44,7 @@
     dirty = true;
     statusEl.textContent = 'Neišsaugoti pakeitimai';
     statusEl.className = 'bld-status dirty';
+    if (device === 'mobile') refreshMobilePreview();
   }
   function placeholder(title, note) {
     return '<div class="bld-placeholder"><b>' + esc(title) + '</b>' + esc(note || '') + '</div>';
@@ -98,16 +100,20 @@
     },
     button: {
       label: 'Mygtukas', icon: '⬲', w: 30,
-      props: { label: 'Mygtukas', url: '#', variant: 'solid', align: 'left' },
+      props: { label: 'Mygtukas', url: '#', variant: 'solid', align: 'left', color: '' },
       fields: [
         { k: 'label', t: 'text', label: 'Užrašas' },
         { k: 'url', t: 'text', label: 'Nuoroda (URL arba puslapis.php)' },
         { k: 'variant', t: 'select', label: 'Stilius', opts: [{ v: 'solid', t: 'Ryškus' }, { v: 'outline', t: 'Kontūrinis' }] },
-        { k: 'align', t: 'select', label: 'Lygiavimas', opts: ALIGN_OPTS }
+        { k: 'align', t: 'select', label: 'Lygiavimas', opts: ALIGN_OPTS },
+        { k: 'color', t: 'color', label: 'Teksto spalva', fallback: function (props) {
+            return props.variant === 'outline' ? '#16203c' : '#ffffff';
+          } }
       ],
       render: function (p) {
         var cls = p.variant === 'outline' ? 'bw-btn bw-btn-outline' : 'bw-btn';
-        return '<div style="text-align:' + esc(p.align || 'left') + '"><a class="' + cls + '" href="#">' + esc(p.label) + '<span class="bw-btn-arrow">→</span></a></div>';
+        var style = /^#[0-9a-f]{6}$/i.test(p.color || '') ? ' style="color:' + esc(p.color) + '"' : '';
+        return '<div style="text-align:' + esc(p.align || 'left') + '"><a class="' + cls + '" href="#"' + style + '>' + esc(p.label) + '<span class="bw-btn-arrow">→</span></a></div>';
       }
     },
     youtube: {
@@ -199,9 +205,14 @@
     el.style.setProperty('--z', b.z || 1);
   }
 
+  function blockClassName(b) {
+    var visCls = b.visibility === 'desktop' ? ' bld-only-desktop' : (b.visibility === 'mobile' ? ' bld-only-mobile' : '');
+    return 'bw-block bw-' + b.type + visCls + (b.id === selectedId ? ' selected' : '');
+  }
+
   function blockEl(b) {
     var el = document.createElement('div');
-    el.className = 'bw-block bw-' + b.type + (b.id === selectedId ? ' selected' : '');
+    el.className = blockClassName(b);
     el.dataset.id = b.id;
     applyGeometry(el, b);
     el.innerHTML = (DEFS[b.type] ? DEFS[b.type].render(b.props || {}) : '') +
@@ -219,6 +230,7 @@
   function refreshBlock(b) {
     var el = canvas.querySelector('[data-id="' + b.id + '"]');
     if (el) {
+      el.className = blockClassName(b);
       applyGeometry(el, b);
       el.innerHTML = DEFS[b.type].render(b.props || {}) + '<div class="bld-resize" title="Keisti plotį"></div>';
     }
@@ -274,10 +286,11 @@
     canvas.querySelectorAll('.bw-block').forEach(function (el) {
       el.classList.toggle('selected', el.dataset.id === id);
     });
+    if (id != null) setPropsCollapsed(false);
     buildProps();
   }
 
-  function propInput(field, value, onChange) {
+  function propInput(field, value, onChange, blockProps) {
     var wrap = document.createElement('div');
     wrap.className = 'bld-prop';
     var lab = document.createElement('label');
@@ -285,7 +298,24 @@
     wrap.appendChild(lab);
     var input;
 
-    if (field.t === 'textarea') {
+    if (field.t === 'color') {
+      var row = document.createElement('div');
+      row.className = 'bld-prop-color';
+      var fallback = field.fallback ? field.fallback(blockProps || {}) : '#000000';
+      input = document.createElement('input');
+      input.type = 'color';
+      input.value = /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback;
+      var resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'btn btn-ghost btn-sm';
+      resetBtn.textContent = value ? '✕ Numatyta' : 'Numatyta spalva';
+      resetBtn.addEventListener('click', function () { onChange(''); buildProps(); });
+      row.appendChild(input);
+      row.appendChild(resetBtn);
+      wrap.appendChild(row);
+      input.addEventListener('input', function () { onChange(input.value); });
+      return wrap;
+    } else if (field.t === 'textarea') {
       input = document.createElement('textarea');
       input.value = value == null ? '' : value;
     } else if (field.t === 'select') {
@@ -357,43 +387,58 @@
     return wrap;
   }
 
+  var VISIBILITY_OPTS = [
+    { v: 'all', t: 'Visur' },
+    { v: 'desktop', t: 'Tik Desktop' },
+    { v: 'mobile', t: 'Tik Mobile' }
+  ];
+
   function buildProps() {
     var b = findBlock(selectedId);
-    propsPanel.innerHTML = '<h3>Savybės</h3>';
+    propsBody.innerHTML = '';
     if (!b) {
-      propsPanel.innerHTML += '<div class="empty">Pasirinkite bloką drobėje arba pridėkite naują iš kairės.</div>';
+      propsBody.innerHTML = '<div class="empty">Pasirinkite bloką drobėje arba pridėkite naują iš kairės.</div>';
       return;
     }
     var d = DEFS[b.type];
     var title = document.createElement('div');
     title.style.cssText = 'font-family:var(--font-display);font-weight:700;margin-bottom:14px';
     title.textContent = d.icon + ' ' + d.label;
-    propsPanel.appendChild(title);
+    propsBody.appendChild(title);
+
+    // Device visibility — applies to every block type.
+    propsBody.appendChild(propInput({ k: 'visibility', t: 'select', label: 'Matomumas', opts: VISIBILITY_OPTS },
+      b.visibility || 'all', function (v) {
+        b.visibility = v;
+        renderCanvas();
+        select(b.id);
+        markDirty();
+      }));
 
     // Type-specific fields.
     d.fields.forEach(function (f) {
-      propsPanel.appendChild(propInput(f, b.props[f.k], function (v) {
+      propsBody.appendChild(propInput(f, b.props[f.k], function (v) {
         b.props[f.k] = v;
         refreshBlock(b);
         markDirty();
-      }));
+      }, b.props));
     });
 
     // Geometry.
     var geoTitle = document.createElement('h3');
     geoTitle.textContent = 'Padėtis ir dydis';
     geoTitle.style.marginTop = '18px';
-    propsPanel.appendChild(geoTitle);
+    propsBody.appendChild(geoTitle);
     var row1 = document.createElement('div');
     row1.className = 'bld-prop-row';
     row1.appendChild(geoInput('X (%)', b.x, 0, 100, 0.5, function (v) { b.x = v; refreshBlock(b); markDirty(); }));
     row1.appendChild(geoInput('Y (px)', b.y, 0, 30000, 5, function (v) { b.y = v; refreshBlock(b); markDirty(); growCanvasIfNeeded(); }));
-    propsPanel.appendChild(row1);
+    propsBody.appendChild(row1);
     var row2 = document.createElement('div');
     row2.className = 'bld-prop-row';
     row2.appendChild(geoInput('Plotis (%)', b.w, 2, 100, 0.5, function (v) { b.w = v; refreshBlock(b); markDirty(); }));
     row2.appendChild(geoInput('Sluoksnis (z)', b.z || 1, 0, 99, 1, function (v) { b.z = v; refreshBlock(b); markDirty(); }));
-    propsPanel.appendChild(row2);
+    propsBody.appendChild(row2);
 
     // Actions.
     var actions = document.createElement('div');
@@ -416,7 +461,7 @@
     del.addEventListener('click', function () { removeBlock(b.id); });
     actions.appendChild(dup);
     actions.appendChild(del);
-    propsPanel.appendChild(actions);
+    propsBody.appendChild(actions);
   }
 
   function removeBlock(id) {
@@ -512,6 +557,60 @@
   });
   snapInput.addEventListener('change', function () {
     canvas.classList.toggle('grid-on', snapInput.checked);
+  });
+
+  // ---------------------------------------------------------------
+  // Collapsible properties panel
+  // ---------------------------------------------------------------
+  var propsPanelEl = document.getElementById('bld-props');
+  var propsToggle = document.getElementById('bld-props-toggle');
+  var propsTab = document.getElementById('bld-props-tab');
+
+  function setPropsCollapsed(collapsed) {
+    propsPanelEl.classList.toggle('collapsed', collapsed);
+    propsTab.hidden = !collapsed;
+  }
+  propsToggle.addEventListener('click', function () { setPropsCollapsed(true); });
+  propsTab.addEventListener('click', function () { setPropsCollapsed(false); });
+
+  // ---------------------------------------------------------------
+  // Desktop / Mobile device preview
+  // ---------------------------------------------------------------
+  var deviceButtons = document.querySelectorAll('.bld-device-btn');
+  var desktopControls = document.getElementById('bld-desktop-controls');
+  var phoneFrame = document.getElementById('bld-phone-frame');
+  var previewFrame = document.getElementById('bld-preview-frame');
+  var previewTimer = null;
+
+  function refreshMobilePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(function () {
+      var body = new FormData();
+      body.append('csrf', window.BW_CSRF);
+      body.append('layout', JSON.stringify(layout));
+      fetch('preview.php', { method: 'POST', headers: { 'X-CSRF': window.BW_CSRF }, body: body })
+        .then(function (r) { return r.text(); })
+        .then(function (html) { previewFrame.srcdoc = html; })
+        .catch(function () {});
+    }, 300);
+  }
+
+  function setDevice(next) {
+    device = next;
+    deviceButtons.forEach(function (btn) { btn.classList.toggle('active', btn.dataset.device === device); });
+    if (device === 'mobile') {
+      canvas.hidden = true;
+      phoneFrame.hidden = false;
+      desktopControls.style.visibility = 'hidden';
+      refreshMobilePreview();
+    } else {
+      canvas.hidden = false;
+      phoneFrame.hidden = true;
+      desktopControls.style.visibility = '';
+    }
+  }
+  deviceButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () { setDevice(btn.dataset.device); });
   });
 
   // ---------------------------------------------------------------
